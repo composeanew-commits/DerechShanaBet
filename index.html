@@ -818,8 +818,8 @@
   }
   function cacheLocal(pending){
     try{
-      localStorage.setItem("derech-cache", JSON.stringify(state.data, (k,v)=> (k==="photo" && typeof v==="string" && v.startsWith("data:")) ? "@" : v));
-      localStorage.setItem("derech-pending", pending ? "1" : "");
+      localStorage.setItem("bet-derech-cache", JSON.stringify(state.data, (k,v)=> (k==="photo" && typeof v==="string" && v.startsWith("data:")) ? "@" : v));
+      localStorage.setItem("bet-derech-pending", pending ? "1" : "");
     }catch(e){}
   }
   async function persist(){
@@ -886,12 +886,12 @@
     });
     state.photosPromise.catch(()=>{});
     setConn(true, "connected");
-    saveLocal("sb-config", cfg);
+    saveLocal("bet-sb-config", cfg);
   }
 
   // ---------------- boot ----------------
   async function boot(){
-    const saved = loadLocal("sb-config") || BUILT_IN_SUPABASE;
+    const saved = loadLocal("bet-sb-config") || BUILT_IN_SUPABASE;
     $("sbUrl").value = saved.url; $("sbKey").value = saved.key;
     $("connectBtn").textContent = "Retry connection";
     const attempts = 4;
@@ -899,14 +899,14 @@
       setConn(false, i===1 ? "connecting\u2026" : `still connecting (try ${i} of ${attempts})\u2026`, true);
       const lt = $("loadingText"); if(lt) lt.textContent = i===1 ? "Connecting\u2026" : `Still connecting (try ${i} of ${attempts})\u2026`;
       try{
-        const pend = loadLocal("derech-pending") ? loadLocal("derech-cache") : null;
+        const pend = loadLocal("bet-derech-pending") ? loadLocal("bet-derech-cache") : null;
         await connect(saved, pend);
         showMain(); autoBackup();
         if(pend) persist().catch(()=>{});
         return;
       }catch(e){
         if(i===attempts){
-          const c = loadLocal("derech-cache");
+          const c = loadLocal("bet-derech-cache");
           if(c){
             state.config = saved; state.data = Object.assign(emptyData(), c);
             photoHolders(state.data).forEach(h=>{ if(h.obj.photo==="@") h.obj.photo = ""; });
@@ -929,7 +929,7 @@
       await connect(state.config, state.data);
       state.offline = false;
       renderRoster(); renderGlobalSearch(); renderAttClassStrip(); renderAttendanceTab(); updateAttentionBanner();
-      if(loadLocal("derech-pending")) await persist(); else showBar(null);
+      if(loadLocal("bet-derech-pending")) await persist(); else showBar(null);
       toast("Back online \u2014 changes synced.", "success");
     }catch(e){ setConn(false, "offline"); }
     finally{ _rc = false; }
