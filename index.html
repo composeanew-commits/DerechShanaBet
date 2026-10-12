@@ -529,6 +529,25 @@ body{background:radial-gradient(1000px 420px at 85% -80px,#D9D4FF 0%,transparent
 button.primary{background:linear-gradient(120deg,#4b3fd1,#2aa9d6)!important;border:0!important;color:#fff!important;border-radius:12px!important}
 .tab.active{color:#4B3FD1!important}
 #gsScope{display:none !important;}
+
+/* ===== Shiurim: set up + place guys ===== */
+.pl-top{position:sticky;top:-22px;background:var(--card);z-index:3;padding:4px 0 8px;}
+.pl-row{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:6px;background:var(--card);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pl-row.in{background:var(--brand-soft);border-color:var(--brand);}
+.pl-row .pn{flex:1;min-width:0;font-size:15px;font-weight:600;color:var(--ink);}
+.pl-row .ps{font-size:12px;color:var(--ink-soft);font-weight:400;margin-top:1px;}
+.pl-ck{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex:none;}
+.pl-row.in .pl-ck{background:var(--brand);border-color:var(--brand);}
+.class-chip.chip-add{border-style:dashed;color:var(--brand);border-color:var(--brand);background:transparent;}
+.shg-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:0 0 12px;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:default;}
+.shg-card.warn{background:#FBF1DC;border-color:#E9CF98;}
+.shg-card .st{font-size:17px;font-weight:700;color:var(--ink);}
+.shg-card .ss{font-size:12px;color:var(--ink-soft);margin:2px 0 10px;}
+.shg-card .sa{display:flex;gap:8px;flex-wrap:wrap;}
+.shg-card .sa button{flex:1 1 auto;padding:10px 12px;border-radius:10px;font-size:14px;}
+.mrow{display:flex;gap:8px;margin-bottom:8px;}
+.mrow input{flex:2;} .mrow input+input{flex:1;}
+
 </style>
 </head>
 <body>
@@ -5879,6 +5898,257 @@ button.primary{background:linear-gradient(120deg,#4b3fd1,#2aa9d6)!important;bord
 
   const _showMainV3 = showMain;
   showMain = function(){ _showMainV3(); try{ tidyUi(); }catch(e){} };
+
+
+  // ================= SHIURIM: set up, place guys, switch guys =================
+  (function(){
+    const esc = escapeHtml, POOL_ID = "class_shana_bet", POOL_RE = /^\s*shana\s+(bet|beis|beit|bais)\s*$/i;
+    const isPool = c=> !!c && (c.id===POOL_ID || POOL_RE.test(c.name||""));
+    const poolClass = ()=>{ let c = state.data.classes.find(x=>x.id===POOL_ID) || state.data.classes.find(x=>POOL_RE.test(x.name||"")); if(!c){ c = {id:POOL_ID, name:"Shana Bet", room:"", year:"bet"}; state.data.classes.push(c); } return c; };
+    const shiurim = ()=> state.data.classes.filter(c=>!isPool(c));
+    const title = c=> c.rebbi || c.name;
+    const placed = s=>{ const c = s.classId ? classById(s.classId) : null; return !!c && !isPool(c); };
+    const unplaced = ()=> state.data.students.filter(s=>!placed(s));
+    const refresh = ()=>{ try{ renderRoster(); }catch(e){} try{ renderAttClassStrip(); renderAttendanceTab(); renderInterviewPicker(); updateAttentionBanner(); }catch(e){} try{ window.__renderHome(); }catch(e){} };
+    let _t = null;
+    const saveSoon = ()=>{ clearTimeout(_t); _t = setTimeout(()=>{ persist().catch(()=>{}); }, 350); };
+    const flush = ()=>{ clearTimeout(_t); return persist().catch(()=>{}); };
+    const toClass = (s, cid)=>{ s.classId = cid || poolClass().id; };
+    const autoName = (rebbi, n)=> rebbi ? rebbi.replace(/\s+/g," ").trim()+"'s Shiur" : "Shiur "+(n+1);
+
+    // ---------- new / edit one shiur ----------
+    openClassDrawer = function(classId, opts){
+      opts = opts || {};
+      const isNew = !classId, cls = isNew ? {id:uid(), name:"", rebbi:"", room:"", year:"bet"} : classById(classId);
+      if(!cls) return;
+      const ov = document.createElement("div"); ov.className = "overlay";
+      ov.addEventListener("click", e=>{ if(e.target===ov) closeOverlay(ov); });
+      const n = studentsInClass(cls.id).length;
+      ov.innerHTML = `<div class="drawer">
+        <div class="drawer-head"><p class="setup-title" style="font-size:18px;margin:0;">${isNew?"New shiur":"Edit shiur"}</p><button class="ghost" id="shX">Close</button></div>
+        <label for="shRebbi">Rebbi</label><input type="text" id="shRebbi" value="${esc(cls.rebbi||"")}" placeholder="e.g. Rabbi Cohen" autocomplete="off">
+        <label for="shRoom">Room <span class="hint">(optional)</span></label><input type="text" id="shRoom" value="${esc(cls.room||"")}" placeholder="e.g. 210" autocomplete="off">
+        <label for="shName">Shiur name <span class="hint">(optional \u2014 defaults to the rebbi's name)</span></label><input type="text" id="shName" value="${esc(cls.name||"")}" placeholder="e.g. Rabbi Cohen's Shiur" autocomplete="off">
+        <div class="row" style="margin-top:18px;gap:8px;">${isNew?"":`<button class="danger" id="shDel">Delete</button>`}<div style="flex:1"></div><button class="primary" id="shSave">${isNew && !opts.onCreate ? "Save & add guys" : "Save"}</button></div>
+        ${isNew ? (opts.onCreate ? "" : `<p style="text-align:center;margin:14px 0 0"><a id="shMulti" style="font-size:13px;color:var(--brand);text-decoration:underline;cursor:pointer">Add several shiurim at once</a></p>`)
+                : `<button id="shAdd" style="width:100%;margin-top:12px;">+ Add guys to this shiur (${n} now)</button>`}
+      </div>`;
+      showOverlay(ov);
+      const g = id=> ov.querySelector(id), close = ()=> closeOverlay(ov);
+      g("#shX").onclick = close;
+      setTimeout(()=>{ try{ if(isNew) g("#shRebbi").focus(); }catch(e){} }, 250);
+      const save = async ()=>{
+        const rebbi = g("#shRebbi").value.trim(), room = g("#shRoom").value.trim();
+        let name = g("#shName").value.trim();
+        if(!rebbi && !name){ toast("Enter the rebbi's name.", "error"); g("#shRebbi").focus(); return false; }
+        if(!name) name = isNew ? autoName(rebbi, shiurim().length) : (cls.name || autoName(rebbi, shiurim().length));
+        cls.rebbi = rebbi; cls.room = room; cls.name = name; cls.year = "bet";
+        if(isNew) state.data.classes.push(cls);
+        try{ await persist(); }catch(e){}
+        close(); refresh();
+        return true;
+      };
+      g("#shSave").onclick = async ()=>{
+        if(!(await save())) return;
+        if(isNew){
+          if(opts.onCreate){ opts.onCreate(cls); return; }
+          state.activeClass = cls.id; refresh(); openPlace(cls.id);
+        } else toast("Saved \u2713", "success");
+      };
+      const ml = g("#shMulti"); if(ml) ml.onclick = ()=>{ close(); openMulti(); };
+      const ad = g("#shAdd"); if(ad) ad.onclick = async ()=>{ if(await save()) openPlace(cls.id); };
+      const dl = g("#shDel"); if(dl) dl.onclick = async ()=>{
+        if(!(await confirmDialog(`Delete "${title(cls)}"? Its ${n} guy${n===1?"":"s"} go back to "Not yet in a shiur".`, {okLabel:"Delete", danger:true}))) return;
+        const pid = poolClass().id;
+        state.data.students.forEach(s=>{ if(s.classId===cls.id) s.classId = pid; });
+        state.data.classes = state.data.classes.filter(x=>x.id!==cls.id);
+        if(state.activeClass===cls.id) state.activeClass = null;
+        try{ await persist(); }catch(e){}
+        close(); refresh();
+      };
+    };
+
+    // ---------- add several shiurim at once ----------
+    function openMulti(){
+      const ov = document.createElement("div"); ov.className = "overlay";
+      ov.addEventListener("click", e=>{ if(e.target===ov) closeOverlay(ov); });
+      const row = ()=> `<div class="mrow"><input type="text" data-r placeholder="Rebbi, e.g. Rabbi Cohen" autocomplete="off"><input type="text" data-m placeholder="Room" autocomplete="off"></div>`;
+      ov.innerHTML = `<div class="drawer">
+        <div class="drawer-head"><p class="setup-title" style="font-size:18px;margin:0;">Set up shiurim</p><button class="ghost" id="mX">Close</button></div>
+        <p class="hint" style="margin-top:0">One line per rebbi. You'll place the guys right after.</p>
+        <div id="mRows">${row()+row()+row()+row()}</div>
+        <button id="mMore" style="width:100%;margin-bottom:12px;">+ Another rebbi</button>
+        <button class="primary" id="mSave" style="width:100%;padding:13px;font-size:16px;">Save shiurim</button></div>`;
+      showOverlay(ov);
+      const close = ()=> closeOverlay(ov);
+      ov.querySelector("#mX").onclick = close;
+      ov.querySelector("#mMore").onclick = ()=>{ ov.querySelector("#mRows").insertAdjacentHTML("beforeend", row()); };
+      ov.querySelector("#mSave").onclick = async ()=>{
+        const have = new Set(shiurim().map(c=> (c.rebbi||"").trim().toLowerCase()));
+        const made = [];
+        ov.querySelectorAll(".mrow").forEach(r=>{
+          const rebbi = r.querySelector("[data-r]").value.trim(), room = r.querySelector("[data-m]").value.trim();
+          if(!rebbi || have.has(rebbi.toLowerCase())) return;
+          have.add(rebbi.toLowerCase());
+          const c = {id:uid(), name:autoName(rebbi, shiurim().length + made.length), rebbi, room, year:"bet"}; made.push(c);
+        });
+        if(!made.length){ toast("Type at least one rebbi's name.", "error"); return; }
+        made.forEach(c=> state.data.classes.push(c));
+        try{ await persist(); }catch(e){}
+        close(); state.activeClass = made[0].id; refresh();
+        toast(`${made.length} shiur${made.length===1?"":"im"} added \u2713`, "success");
+        openPlace(made[0].id);
+      };
+      setTimeout(()=>{ try{ ov.querySelector("[data-r]").focus(); }catch(e){} }, 250);
+    }
+
+    // ---------- place guys: tap a name to put him in the shiur ----------
+    function openPlace(targetId){
+      if(!shiurim().length){ openMulti(); return; }
+      let target = (targetId && classById(targetId) && !isPool(classById(targetId))) ? targetId : shiurim()[0].id;
+      let filter = unplaced().length ? "un" : "all", q = "";
+      const keep = new Set(unplaced().map(s=>s.id));
+      const ov = document.createElement("div"); ov.className = "overlay";
+      ov.addEventListener("click", e=>{ if(e.target===ov) done(); });
+      ov.innerHTML = `<div class="drawer">
+        <div class="pl-top">
+          <div class="drawer-head" style="margin-bottom:8px;"><p class="setup-title" style="font-size:18px;margin:0;">Place guys in a shiur</p><button class="primary" id="plDone" style="padding:8px 16px;">Done</button></div>
+          <div class="class-strip" id="plChips" style="margin-bottom:8px;"></div>
+          <p class="hint" id="plHint" style="margin:0 0 8px;"></p>
+          <input type="search" id="plQ" placeholder="Search a name" autocomplete="off" style="margin-bottom:8px;width:100%;max-width:none;">
+          <div class="class-strip" id="plTabs"></div>
+        </div>
+        <div id="plList"></div></div>`;
+      showOverlay(ov);
+      const g = id=> ov.querySelector(id);
+      function done(){ closeOverlay(ov); flush(); refresh(); }
+      g("#plDone").onclick = done;
+      function paint(){
+        const tc = classById(target); if(!tc){ done(); return; }
+        const chips = g("#plChips"); chips.innerHTML = "";
+        shiurim().forEach(c=>{
+          const d = document.createElement("div"); d.className = "class-chip"+(c.id===target?" active":"");
+          d.innerHTML = `${esc(title(c))} <span class="n">${studentsInClass(c.id).length}</span>`;
+          d.onclick = ()=>{ target = c.id; paint(); };
+          chips.appendChild(d);
+        });
+        const add = document.createElement("div"); add.className = "class-chip chip-add"; add.textContent = "+ Shiur";
+        add.onclick = ()=> openClassDrawer(null, {onCreate: c=>{ target = c.id; paint(); }});
+        chips.appendChild(add);
+        const nu = unplaced().length;
+        g("#plHint").innerHTML = `Tap a guy to put him in <b>${esc(title(tc))}</b>. Tap again to take him out.`;
+        const tabs = g("#plTabs"); tabs.innerHTML = "";
+        [["un", "Not placed"+" ("+nu+")"], ["all", "Everyone"]].forEach(([k,l])=>{
+          const d = document.createElement("div"); d.className = "class-chip"+(filter===k?" active":""); d.textContent = l;
+          d.onclick = ()=>{ filter = k; paint(); }; tabs.appendChild(d);
+        });
+        let list = state.data.students.slice().sort(byName);
+        if(q){ const ql = q.toLowerCase(); list = list.filter(s=> (s.name||"").toLowerCase().includes(ql)); }
+        else if(filter==="un") list = list.filter(s=> keep.has(s.id) || !placed(s));
+        const box = g("#plList"); box.innerHTML = "";
+        if(!list.length){ box.innerHTML = `<p class="hint" style="text-align:center;margin-top:24px;">${q?"No one by that name.":"Everyone is placed \u2713"}</p>`; return; }
+        list.forEach(s=>{
+          const c = s.classId ? classById(s.classId) : null, here = s.classId===target;
+          const d = document.createElement("div"); d.className = "pl-row"+(here?" in":"");
+          d.innerHTML = `<div class="pn">${esc(s.name)}<div class="ps">${c && !isPool(c) ? (here ? "In this shiur" : "In "+esc(title(c))) : "Not placed yet"}</div></div><div class="pl-ck">${here?"\u2713":""}</div>`;
+          d.onclick = ()=>{ navigator.vibrate && navigator.vibrate(8); const was = here; toClass(s, was ? null : target); keep.add(s.id); saveSoon(); const top = ov.querySelector(".drawer").scrollTop; paint(); ov.querySelector(".drawer").scrollTop = top; };
+          box.appendChild(d);
+        });
+      }
+      g("#plQ").addEventListener("input", e=>{ q = e.target.value.trim(); paint(); });
+      paint();
+    }
+
+    // ---------- roster: visible "+ Shiur", shiur header card, unplaced banner ----------
+    const _rr = renderRoster;
+    renderRoster = function(){
+      _rr.apply(this, arguments);
+      try{ decorate(); }catch(e){ console.error(e); }
+    };
+    function decorate(){
+      const strip = $("classStrip"), grid = $("rosterGrid"); if(!strip || !grid) return;
+      const first = strip.firstElementChild; if(first && /^\s*shana bet\s*$/i.test(first.textContent)) first.textContent = "All guys";
+      strip.querySelectorAll(".class-chip .hint").forEach(h=>{ const chip = h.parentNode, rb = h.textContent.replace(/[()]/g,"").trim().toLowerCase(); if(rb && chip.textContent.replace(h.textContent,"").toLowerCase().includes(rb)) h.remove(); });
+      const add = document.createElement("div"); add.className = "class-chip chip-add"; add.textContent = "+ Shiur";
+      add.onclick = ()=> shiurim().length ? openClassDrawer(null) : openMulti();
+      strip.appendChild(add);
+      const old = document.getElementById("shiurHead"); if(old) old.remove();
+      const card = document.createElement("div"); card.id = "shiurHead";
+      const ac = state.activeClass, c = (ac && ac!=="__all" && ac!=="__none") ? classById(ac) : null;
+      const real = c && !isPool(c), nu = unplaced().length, total = state.data.students.length;
+      let html = "";
+      if(!shiurim().length && total){
+        html = `<div class="shg-card warn"><div class="st">Set up your shiurim</div><div class="ss">Add each rebbi's shiur, then tap guys into them. Takes a minute.</div><div class="sa"><button class="primary" data-a="multi">Add shiurim</button></div></div>`;
+      } else if(real){
+        const n = studentsInClass(c.id).length;
+        html = `<div class="shg-card"><div class="st">${esc(title(c))}</div><div class="ss">${[c.rebbi && c.name!==c.rebbi ? esc(c.name) : "", c.room ? "Room "+esc(c.room) : "", n+" talmid"+(n===1?"":"im")].filter(Boolean).join(" \u00b7 ")}</div><div class="sa"><button class="primary" data-a="add">+ Add guys</button><button data-a="att">Attendance</button><button data-a="edit">Edit</button></div></div>`;
+      } else if(nu){
+        html = `<div class="shg-card warn"><div class="st">${nu} guy${nu===1?"":"s"} not in a shiur yet</div><div class="ss">Tap them into their rebbi's shiur \u2014 it saves as you go.</div><div class="sa"><button class="primary" data-a="place">Place them</button></div></div>`;
+      }
+      if(!html) return;
+      card.innerHTML = html; grid.parentNode.insertBefore(card, grid);
+      card.querySelectorAll("[data-a]").forEach(b=> b.onclick = ()=>{
+        const a = b.dataset.a;
+        if(a==="multi") openMulti();
+        else if(a==="add") openPlace(c.id);
+        else if(a==="place") openPlace();
+        else if(a==="edit") openClassDrawer(c.id);
+        else if(a==="att"){
+          const tab = document.querySelector('.tab[data-tab="attendance"]'); if(tab) tab.click();
+          state.attMode = "rebbe"; state.activeAttClass = c.id;
+          $("attClassPickerPanel").classList.add("hidden"); $("attTakePanel").classList.remove("hidden");
+          try{ renderAttendanceTab(); renderAttClassStrip(); }catch(e){}
+        }
+      });
+    }
+
+    // ---------- inside a guy's quick profile: one-tap shiur switch ----------
+    const _osq = openStudentQuick;
+    openStudentQuick = function(id){
+      const r = _osq.apply(this, arguments);
+      try{ injectQuick(id); }catch(e){ console.error(e); }
+      return r;
+    };
+    function injectQuick(id){
+      const s = state.data.students.find(x=>x.id===id); if(!s) return;
+      const ovs = document.querySelectorAll(".overlay"), ov = ovs[ovs.length-1]; if(!ov) return;
+      const lbl = Array.from(ov.querySelectorAll(".pf-lbl")).find(l=>/^quick check-in/i.test(l.textContent)); if(!lbl) return;
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `<div class="pf-lbl">Shiur</div><div class="class-strip" id="qsShiur" style="margin-bottom:10px;"></div>`;
+      lbl.parentNode.insertBefore(wrap, lbl);
+      const strip = wrap.querySelector("#qsShiur");
+      const hint = ov.querySelector(".qs-head .hint");
+      function paint(){
+        strip.innerHTML = "";
+        const cur = s.classId ? classById(s.classId) : null;
+        const mk = (label, active, fn, extra)=>{ const d = document.createElement("div"); d.className = "class-chip"+(active?" active":"")+(extra||""); d.textContent = label; d.onclick = fn; strip.appendChild(d); };
+        shiurim().forEach(c=> mk(title(c), cur && cur.id===c.id, ()=> move(c.id, title(c))));
+        mk("Not placed", !cur || isPool(cur), ()=> move(null, "not placed"));
+        mk("+ New", false, ()=> openClassDrawer(null, {onCreate: c=> move(c.id, title(c))}), " chip-add");
+      }
+      function move(cid, lab){
+        if((s.classId||null)===(cid||null)) return;
+        toClass(s, cid); navigator.vibrate && navigator.vibrate(10);
+        if(hint) hint.textContent = quickSub(s);
+        const ab = ov.querySelector("#qsModeAtt"); if(ab) ab.disabled = false;
+        paint(); toast(`${s.name} \u2192 ${lab}`, "success");
+        persist().catch(()=>{}); refresh();
+      }
+      paint();
+    }
+
+    // ---------- menu shortcut ----------
+    (function(){
+      const mm = $("moreMenu"); if(!mm) return;
+      const b = document.createElement("button"); b.style.fontWeight = "600"; b.textContent = "\uD83D\uDC65 Shiurim \u2014 set up & place guys";
+      b.addEventListener("click", ()=>{
+        mm.classList.add("hidden");
+        const tab = document.querySelector('.tab[data-tab="roster"]'); if(tab) tab.click();
+        shiurim().length ? openPlace() : openMulti();
+      });
+      mm.insertBefore(b, mm.firstChild);
+    })();
+  })();
 
   if(window.__needWelcome()) window.__showWelcome(); else boot();
 })();
